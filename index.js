@@ -106,7 +106,8 @@ app.get("/auth/google", (req, res) => {
   });
   res.redirect(authUrl);
 });
-
+// add this uri to the oauth id
+// http://localhost:8000/auth/google/callback
 app.get("/auth/google/callback", async (req, res) => {
   const { code } = req.query;
 
