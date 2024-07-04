@@ -165,6 +165,7 @@ const oAuth2Client = new google.auth.OAuth2(
   redirect_uris[0]
 );
 
+const API_KEY = "AIzaSyA8EvmpNJttuxsJi6A8lgfooLIuL2divRI"; // Replace with your Google API key
 const SCOPES = [
   "https://www.googleapis.com/auth/fitness.activity.read",
   "https://www.googleapis.com/auth/fitness.heart_rate.read",
@@ -174,99 +175,76 @@ const SCOPES = [
   "https://www.googleapis.com/auth/userinfo.profile",
 ];
 
+const dataValues = [
+  { title: "Calories", type: "com.google.calories.expended" },
+  { title: "Heart", type: "com.google.heart_minutes" },
+  { title: "Move", type: "com.google.active_minutes" },
+  { title: "Steps", type: "com.google.step_count.delta" },
+  { title: "Sleep", type: "com.google.sleep.segment" },
+];
 
-const getRealTimeData = async (accessToken) => {
-  const dataTypes = {
-    heartRate: "com.google.heart_rate.bpm",
-    steps: "com.google.step_count.delta",
-    activeMinutes: "com.google.active_minutes",
-  };
-  
-  const currentTimeMillis = Date.now();
-  const startTimeMillis = currentTimeMillis - 60 * 60 * 1000; // last hour
-  const fetch = (await import("node-fetch")).default; // Dynamically import node-fetch
-
-  const fetchData = async (dataType) => {
-    const dataSourceResponse = await fetch(
-      `https://www.googleapis.com/fitness/v1/users/me/dataSources?dataTypeName=${dataType}`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-        },
-      }
-    );
-
-    const dataSources = await dataSourceResponse.json();
-
-    if (!dataSources.dataSource || dataSources.dataSource.length === 0) {
-      return null;
-    }
-
-    const dataSourceId = dataSources.dataSource[0].dataStreamId;
-
-    const datasetId = `${startTimeMillis}-${currentTimeMillis}`;
-
-    const datasetResponse = await fetch(
-      `https://www.googleapis.com/fitness/v1/users/me/dataSources/${dataSourceId}/datasets/${datasetId}`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-        },
-      }
-    );
-
-    const dataset = await datasetResponse.json();
-
-    let value = 0;
-    if (dataset.point && dataset.point.length > 0) {
-      dataset.point.forEach((point) => {
-        point.value.forEach((val) => {
-          value += val.intVal || val.fpVal || 0;
-        });
-      });
-    }
-
-    return value;
-  };
-
-  const heartRate = await fetchData(dataTypes.heartRate);
-  const steps = await fetchData(dataTypes.steps);
-  const activeMinutes = await fetchData(dataTypes.activeMinutes);
-
+const getAggregatedDataBody = (dataType, endTime) => {
   return {
-    heartRate,
-    steps,
-    activeMinutes,
+    aggregateBy: [{ dataTypeName: dataType }],
+    bucketByTime: { durationMillis: 86400000 },
+    endTimeMillis: endTime,
+    startTimeMillis: endTime - 7 * 86400000,
   };
 };
 
-const verifyWatchConnection = async (accessToken) => {
-  try {
-    const response = await fetch(
-      "https://www.googleapis.com/fitness/v1/users/me/dataSources",
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: "application/json",
-        },
-      }
-    );
+const baseObj = { Calories: 0, Heart: 0, Move: 0, Steps: 0, sleep: 0 };
 
-    const dataSources = await response.json();
-    const watchConnected = dataSources.dataSource.some((source) =>
-      source.device && source.device.type === "watch"
-    );
+const getWeeklyData = async (endTime, accessToken) => {
+  let state = [];
 
-    return watchConnected;
-  } catch (error) {
-    console.error("Error verifying watch connection:", error);
-    return false;
+  for (let i = 6; i >= 0; i--) {
+    let currTime = new Date(endTime - i * 86400000);
+    state.push({ ...baseObj, Date: currTime.toISOString().split("T")[0] });
   }
+
+  const fetchData = async (element) => {
+    let body = getAggregatedDataBody(element.type, endTime);
+
+    try {
+      const response = await fetch(
+        `https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate?key=${API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        }
+      );
+      const data = await response.json();
+
+      data.bucket.forEach((bucket, idx) => {
+        if (bucket.dataset[0].point.length > 0) {
+          bucket.dataset[0].point.forEach((point) => {
+            point.value.forEach((val) => {
+              let extract;
+              if (element.title === "Sleep") {
+                // Sleep duration is given in milliseconds
+                extract = val["intVal"] || val["fpVal"];
+                extract = extract / (1000 * 60 * 60); // Convert milliseconds to hours
+              } else {
+                extract = val["intVal"] || Math.ceil(val["fpVal"]);
+              }
+              state[idx][element.title] += extract;
+            });
+          });
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching data for ${element.title}:", error);
+    }
+  };
+
+  await Promise.all(dataValues.map(fetchData));
+
+  return state;
 };
 
 app.get("/auth/google", (req, res) => {
@@ -293,6 +271,7 @@ app.get("/auth/google/callback", async (req, res) => {
 });
 
 app.get("/", async (req, res) => {
+  const endTime = Date.now();
   const tokens = req.session.tokens;
 
   if (!tokens) {
@@ -301,17 +280,11 @@ app.get("/", async (req, res) => {
   }
 
   try {
-    const watchConnected = await verifyWatchConnection(tokens.access_token);
-    if (!watchConnected) {
-      res.json({ error: "No connected watch found." });
-      return;
-    }
-
-    const realTimeData = await getRealTimeData(tokens.access_token);
-    res.json(realTimeData);
+    const data = await getWeeklyData(endTime, tokens.access_token);
+    res.json(data);
   } catch (error) {
     console.error("Error fetching fitness data:", error);
-    res.redirect("/error");
+    res.status(500).json({ error: "Error fetching fitness data" });
   }
 });
 
