@@ -17,4 +17,4 @@ data = pd.DataFrame({
 
 # Save the dataset
 data.to_csv('./stress_data.csv', index=False)
-print("Synthetic dataset created and saved as 'synthetic_data_without_stress.csv'.")
+

@@ -5,10 +5,10 @@ from sklearn.metrics import accuracy_score, classification_report
 import joblib
 
 # Load the synthetic dataset with stress levels
-data = pd.read_csv('stress_data.csv')
+data = pd.read_csv('stressdata.csv')
 
 # Define features and target
-features = ['calories', 'heart_rate', 'steps', 'sleep_hours']
+features = ['heart_rate', 'steps', 'sleep_hours']
 target = 'stress_level'
 
 X = data[features]
