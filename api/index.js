@@ -4,7 +4,6 @@ const bodyParser = require("body-parser");
 const cookieParser = require("cookie-parser");
 const { google } = require("googleapis");
 const cors = require("cors");
-const { spawn } = require("child_process");
 const path = require("path");
 const app = express();
 
@@ -26,7 +25,7 @@ const { client_secret, client_id, redirect_uris } = credentials.web;
 const {
   API_KEY,
   SCOPES,
-  baseOb,
+  baseObj,
   calculateAverages,
   dataValues,
   getAggregatedDataBody,
@@ -40,6 +39,7 @@ const oAuth2Client = new google.auth.OAuth2(
   redirect_uris[0]
 );
 
+// Middleware for authentication
 const authenticate = (req, res, next) => {
   const accessToken =
     req.cookies.access_token || req.session.tokens?.access_token;
@@ -57,6 +57,7 @@ const authenticate = (req, res, next) => {
   next();
 };
 
+// Dashboard endpoint
 app.get("/api/dashboard", authenticate, async (req, res) => {
   const endTime = Date.now();
 
@@ -65,8 +66,8 @@ app.get("/api/dashboard", authenticate, async (req, res) => {
       endTime,
       req.cookies.access_token
     );
-
-    // Calculate averages (assuming calculateAverages is defined somewhere)
+    console.log("Here")
+    // Calculate averages
     const averageData = calculateAverages(state);
 
     // Predict stress level for the averages
@@ -76,8 +77,8 @@ app.get("/api/dashboard", authenticate, async (req, res) => {
       averageData.Sleep,
       averageData.Steps
     );
-    console.log(predictedStress);
-    sendEmail();
+    console.log(averageData);
+
     // Prepare response
     res.json({
       state: state,
@@ -91,10 +92,6 @@ app.get("/api/dashboard", authenticate, async (req, res) => {
     console.error("Error handling dashboard data:", error);
     res.status(500).send("Error handling dashboard data");
   }
-});
-
-app.get("/error", (req, res) => {
-  res.send("An error occurred during authentication.");
 });
 
 // Route to start the OAuth flow
@@ -114,7 +111,7 @@ app.get("/auth/google/callback", async (req, res) => {
     const { tokens } = await oAuth2Client.getToken(code);
     oAuth2Client.setCredentials(tokens);
     req.session.tokens = tokens;
-    console.log("Here");
+
     // Save tokens in a cookie
     res.cookie("access_token", tokens.access_token, {
       httpOnly: true,
@@ -132,18 +129,22 @@ app.get("/auth/google/callback", async (req, res) => {
   }
 });
 
+// Test endpoint to check server connection
 app.get("/api/test", (req, res) => {
-  res.json({ message: "Backend is connected!, This is Server  Vasanth" });
+  res.json({ message: "Backend is connected!, This is Server Vasanth" });
 });
 
+// Error route
 app.get("/error", (req, res) => {
   res.send("An error occurred during authentication.");
 });
 
+// Start the server
 const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
 // const express = require("express");
 // const session = require("express-session");
 // const bodyParser = require("body-parser");

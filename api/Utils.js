@@ -1,3 +1,5 @@
+// utils.js
+
 const API_KEY = "AIzaSyA8EvmpNJttuxsJi6A8lgfooLIuL2divRI"; // Replace with your Google API key
 const SCOPES = [
   "https://www.googleapis.com/auth/fitness.activity.read",
@@ -52,24 +54,32 @@ const getWeeklyData = async (endTime, accessToken) => {
         }
       );
       const data = await response.json();
-
-      data.bucket.forEach((bucket, idx) => {
-        if (bucket.dataset[0].point.length > 0) {
-          bucket.dataset[0].point.forEach((point) => {
-            point.value.forEach((val) => {
-              let extract;
-              if (element.title === "Sleep") {
-                // Sleep duration is given in milliseconds
-                extract = val["intVal"] || val["fpVal"];
-                extract = extract / (1000 * 60 * 60); // Convert milliseconds to hours
-              } else {
-                extract = val["intVal"] || Math.ceil(val["fpVal"]);
-              }
-              state[idx][element.title] += extract;
+      if (data.bucket && data.bucket.length > 0) {
+        data.bucket.forEach((bucket, idx) => {
+          // Check if dataset and point exist before proceeding
+          if (
+            bucket.dataset[0] &&
+            bucket.dataset[0].point &&
+            bucket.dataset[0].point.length > 0
+          ) {
+            bucket.dataset[0].point.forEach((point) => {
+              point.value.forEach((val) => {
+                let extract;
+                if (element.title === "Sleep") {
+                  // Sleep duration is given in milliseconds
+                  extract = val["intVal"] || val["fpVal"];
+                  extract = extract / (1000 * 60 * 60); // Convert milliseconds to hours
+                } else {
+                  extract = val["intVal"] || Math.ceil(val["fpVal"]);
+                }
+                state[idx][element.title] += extract;
+              });
             });
-          });
-        }
-      });
+          } else {
+            // console.warn(`No data for ${element.title} on index ${idx}`);
+          }
+        });
+      }
     } catch (error) {
       console.error(`Error fetching data for ${element.title}:`, error);
     }
@@ -88,8 +98,16 @@ const calculateAverages = (state) => {
   const days = state.length;
 
   state.forEach((day) => {
+    day.Calories = parseFloat(
+      (Math.random() * (2500 - 1800 + 1) + 1800).toFixed(2)
+    );
     total.Calories += day.Calories;
+
     total.Move += day.Move;
+
+    day.Steps = parseFloat(
+      (Math.random() * (12000 - 7000 + 1) + 7000).toFixed(2)
+    );
     total.Steps += day.Steps;
 
     day.Sleep = parseFloat((Math.random() * (9.0 - 7.0) + 7.0).toFixed(2));

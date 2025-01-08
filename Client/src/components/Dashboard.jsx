@@ -52,7 +52,11 @@ const Dashboard = () => {
   }
 
   if (!data) {
-    return <div className="text-gray-500">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center w-screen h-screen ">
+        <div className="text-2xl font-extrabold text-gray-700">Loading...</div>
+      </div>
+    );
   }
 
   const heartRateData = data.state.map((item) => item.Heart);
@@ -158,7 +162,9 @@ const Dashboard = () => {
       className="flex flex-col items-center justify-center min-h-screen p-6 text-white "
       style={{ backgroundColor: "transparent" }}
     >
-      <h1 className="mb-8 text-5xl font-bold text-slate-800">Welcome to Your Dashboard</h1>
+      <h1 className="mb-8 text-5xl font-bold text-slate-800">
+        Welcome to Your Dashboard
+      </h1>
       <p className="max-w-xl mb-12 text-xl text-center text-slate-800">
         Track your weekly data and monitor your progress over time with
         beautiful and interactive charts.

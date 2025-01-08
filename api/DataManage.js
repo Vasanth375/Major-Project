@@ -1,8 +1,8 @@
 const express = require("express");
 const session = require("express-session");
 const { google } = require("googleapis");
-const { spawn } = require('child_process');
-const fetch = require('node-fetch');
+const { spawn } = require("child_process");
+const fetch = require("node-fetch");
 
 const app = express();
 
@@ -102,34 +102,28 @@ const getWeeklyData = async (endTime, accessToken) => {
 
   await Promise.all(dataValues.map(fetchData));
 
+  console.log(state);
   // Calculate averages
   const averages = calculateAverages(state);
-
   return { state, averages };
 };
 
-const calculateAverages = (state) => {
-  const total = { Calories: 0, Heart: 0, Move: 0, Steps: 0, Sleep: 0 };
-  const days = state.length;
+const calculateAverages = (data) => {
+  const total = { Calories: 0, Steps: 0, Sleep: 0, Heart: 0 };
+  const days = data.length;
 
-  state.forEach((day) => {
+  data.forEach((day) => {
     total.Calories += day.Calories;
-    total.Move += day.Move;
     total.Steps += day.Steps;
-
-    day.Sleep = parseFloat((Math.random() * (9.0 - 7.0 )+ 7.0).toFixed(2));
     total.Sleep += day.Sleep;
-    // Set Heart rate as random between 62 to 80
-    day.Heart = Math.floor(Math.random() * (90 - 60 + 1)) + 60;
     total.Heart += day.Heart;
   });
 
   return {
     Calories: parseFloat((total.Calories / days).toFixed(2)),
-    Heart: parseFloat((total.Heart / days).toFixed(2)),
-    Move: parseFloat((total.Move / days).toFixed(2)),
     Steps: parseFloat((total.Steps / days).toFixed(2)),
     Sleep: parseFloat((total.Sleep / days).toFixed(2)),
+    Heart: parseFloat((total.Heart / days).toFixed(2)),
   };
 };
 
@@ -166,26 +160,29 @@ app.get("/", async (req, res) => {
   }
 
   try {
-    const { state, averages } = await getWeeklyData(endTime, tokens.access_token);
+    const { state, averages } = await getWeeklyData(
+      endTime,
+      tokens.access_token
+    );
 
     // Prepare data for the Python script
     const inputData = { weeklyData: state };
 
     // Spawn a child process to run the Python script
-    const pythonProcess = spawn('python', ['../scripts/predict_stress.py'], {
-      stdio: ['pipe', 'pipe', process.stderr],
+    const pythonProcess = spawn("python", ["../scripts/predict_stress.py"], {
+      stdio: ["pipe", "pipe", process.stderr],
     });
 
     pythonProcess.stdin.write(JSON.stringify(inputData));
     pythonProcess.stdin.end();
 
-    let result = '';
+    let result = "";
 
-    pythonProcess.stdout.on('data', (data) => {
+    pythonProcess.stdout.on("data", (data) => {
       result += data.toString();
     });
 
-    pythonProcess.on('close', (code) => {
+    pythonProcess.on("close", (code) => {
       if (code !== 0) {
         console.error(`Python script exited with code ${code}`);
         res.status(500).send("Error predicting stress levels");
@@ -215,10 +212,3 @@ const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
-
-
-
-
-
-
-
