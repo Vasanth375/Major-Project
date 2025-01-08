@@ -10,7 +10,7 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 app.use(cookieParser());
-
+app.use(express.static(path.join(__dirname, '../Client/build')));
 app.use(
   session({
     secret: "secretKey",
@@ -138,6 +138,13 @@ app.get("/api/test", (req, res) => {
 app.get("/error", (req, res) => {
   res.send("An error occurred during authentication.");
 });
+
+
+// Fallback route for React
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../Client/build', 'index.html'));
+});
+
 
 // Start the server
 const PORT = process.env.PORT || 8000;
